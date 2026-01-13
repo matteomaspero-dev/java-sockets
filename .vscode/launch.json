@@ -1,0 +1,31 @@
+{
+	"configurations": [
+		{
+			"type": "java",
+			"name": "MainServer",
+			"request": "launch",
+			"mainClass": "MainServer",
+			"projectName": "java-sockets_3ee43783"
+		},
+		{
+			"type": "java",
+			"name": "Launch Server (External Terminal)",
+			"request": "launch",
+			"console": "externalTerminal",
+			"mainClass": "test.MainServer"
+		},
+		{
+			"type": "java",
+			"name": "Launch Client (External Terminal)",
+			"request": "launch",
+			"console": "externalTerminal",
+			"mainClass": "test.MainClient"
+		}
+	],
+	"compounds": [
+		{
+			"name": "Launch Server and Client (External Terminal)",
+			"configurations": ["Launch Server (External Terminal)", "Launch Client (External Terminal)"]
+		}
+	]
+}
