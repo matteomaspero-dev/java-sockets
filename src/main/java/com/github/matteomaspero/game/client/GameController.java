@@ -12,7 +12,15 @@ public class GameController {
 		this.client = client;
 	}
 
+	public void start() {
+
+	}
+
 	public void update() throws IOException, EOFException, ClassNotFoundException {
+		
+	}
+
+	public void gameover() {
 		
 	}
 }

@@ -10,9 +10,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.github.matteomaspero.core.config.NetworkDefaults;
 import com.github.matteomaspero.core.shared.Message;
+import com.github.matteomaspero.core.shared.NetworkConfig;
 import com.github.matteomaspero.game.server.GameService;
+import com.github.matteomaspero.game.shared.GameConfig;
+import com.github.matteomaspero.game.shared.GameConfig.Side;
 
 /*
  * Server class
@@ -20,24 +22,26 @@ import com.github.matteomaspero.game.server.GameService;
 public class Server {
 	private ServerSocket serverSocket;
 	private List<ClientHandler> connectedClients;
+	private GameService gameService;
 
 	public Server() {
 		try {
-			serverSocket = new ServerSocket(NetworkDefaults.DEFAULT_PORT);
-			connectedClients = Collections.synchronizedList(new ArrayList<>(NetworkDefaults.MAX_PLAYERS));
+			serverSocket = new ServerSocket(NetworkConfig.DEFAULT_PORT);
+			connectedClients = Collections.synchronizedList(new ArrayList<>(NetworkConfig.MAX_CONNECTIONS));
+			gameService = new GameService(this, connectedClients);
 
 		} catch (IOException e) {
-			error("Failed to create server socket on port " + NetworkDefaults.DEFAULT_PORT, e);
+			error("Failed to create server socket on port " + NetworkConfig.DEFAULT_PORT, e);
 		}
 	}
 
 	public void start() {
 		try {
-			log("Server started on port " + NetworkDefaults.DEFAULT_PORT);
+			log("Server started on port " + NetworkConfig.DEFAULT_PORT);
 
 			while (!serverSocket.isClosed()) {
 				Socket clientSocket = serverSocket.accept();
-				if (connectedClients.size() >= NetworkDefaults.MAX_CONNECTIONS) {
+				if (connectedClients.size() >= NetworkConfig.MAX_CONNECTIONS) {
 					log("Connection refused: maximum connections reached.");
 					clientSocket.close();
 					continue;
@@ -66,11 +70,15 @@ public class Server {
 		}
 	}
 
-	private void log(String message) {
+	public List<ClientHandler> getConnectedClients() {
+		return connectedClients;
+	}
+
+	public void log(String message) {
 		System.out.println("[SERVER] " + message);
 	}
 
-	private void error(String message, Throwable e) {
+	public void error(String message, Throwable e) {
 		throw new RuntimeException("[SERVER ERROR] " + message, e);
 	}
 
@@ -81,8 +89,8 @@ public class Server {
 		private Socket clientSocket;
 		private ObjectInputStream in;
 		private ObjectOutputStream out;
-		private GameService gameService;
 		private String clientName;
+		private Side side;
 
 		public ClientHandler(Socket clientSocket) {
 			try {
@@ -90,7 +98,6 @@ public class Server {
 				out = new ObjectOutputStream(clientSocket.getOutputStream());
 				out.flush();
 				in = new ObjectInputStream(clientSocket.getInputStream());
-				gameService = new GameService(this);
 				clientName = "Anonymous:" + clientSocket.getPort();
 
 			} catch (IOException e) {
@@ -104,9 +111,11 @@ public class Server {
 				handshake();
 				log("Player " + clientName + " connected.");
 
+				gameService.start();
 				while (!clientSocket.isClosed()) {
 					gameService.update();
 				}
+				gameService.gameover();
 
 			} catch (EOFException e) {
 				log("Client " + clientName + " disconnected.");
@@ -132,8 +141,44 @@ public class Server {
 			}
 		}
 
+		public void send(Message message) throws IOException {
+			out.writeObject(message);
+			out.flush();
+		}
+
+		public void send(Message.Type type, Object payload) throws IOException {
+			send(new Message(type, payload));
+		}
+
+		public void broadcast(Message.Type type, Object payload) throws IOException {
+			for (ClientHandler clientHandler : connectedClients) {
+				clientHandler.send(type, payload);
+			}
+		}
+
+		public Message receive() throws IOException, ClassNotFoundException {
+			return (Message) in.readObject();
+		}
+
+		public Message receive(Message.Type expectedType) throws IOException, ClassNotFoundException {
+			Message message = receive();
+			if (message.getType() != expectedType) {
+				terminate();
+				error("Expected " + expectedType + " message, got " + message.getType(), null);
+			}
+			return message;
+		}
+
 		public String getClientName() {
 			return clientName;
+		}
+
+		public Side getSide() {
+			return side;
+		}
+
+		public void setSide(Side side) {
+			this.side = side;
 		}
 
 		private void handshake() throws IOException, ClassNotFoundException {
@@ -160,32 +205,10 @@ public class Server {
 		}
 
 		private void verifyClientVersion(String clientVersion) {
-			if (!NetworkDefaults.VERSION.equals(clientVersion)) {
+			if (!NetworkConfig.VERSION.equals(clientVersion)) {
 				terminate();
 				error("Client " + clientName + " has incompatible version: " + clientVersion, null);
 			}
-		}
-
-		private void send(Message message) throws IOException {
-			out.writeObject(message);
-			out.flush();
-		}
-
-		private void send(Message.Type type, Object payload) throws IOException {
-			send(new Message(type, payload));
-		}
-
-		private Message receive() throws IOException, ClassNotFoundException {
-			return (Message) in.readObject();
-		}
-
-		private Message receive(Message.Type expectedType) throws IOException, ClassNotFoundException {
-			Message message = receive();
-			if (message.getType() != expectedType) {
-				terminate();
-				error("Expected " + expectedType + " message, got " + message.getType(), null);
-			}
-			return message;
 		}
 	}
 }
