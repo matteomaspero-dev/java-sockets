@@ -20,7 +20,6 @@ import com.github.matteomaspero.game.server.GameService;
 public class Server {
 	private ServerSocket serverSocket;
 	private List<ClientHandler> connectedClients;
-	private volatile boolean running = false;
 
 	public Server() {
 		try {
@@ -33,11 +32,10 @@ public class Server {
 	}
 
 	public void start() {
-		running = true;
 		try {
 			log("Server started on port " + NetworkDefaults.DEFAULT_PORT);
 
-			while (running) {
+			while (!serverSocket.isClosed()) {
 				Socket clientSocket = serverSocket.accept();
 				if (connectedClients.size() >= NetworkDefaults.MAX_CONNECTIONS) {
 					log("Connection refused: maximum connections reached.");
@@ -51,14 +49,11 @@ public class Server {
 			}
 
 		} catch (IOException e) {
-			if (running) {
-				error("Error while running the server", e);
-			}
+			error("Error while running the server", e);
 		}
 	}
 
 	public void stop() {
-		running = false;
 		try {
 			for (ClientHandler clientHandler : connectedClients) {
 				clientHandler.terminate();

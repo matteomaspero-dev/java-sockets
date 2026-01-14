@@ -7,6 +7,7 @@ import java.net.Socket;
 
 import com.github.matteomaspero.core.config.NetworkDefaults;
 import com.github.matteomaspero.core.shared.Message;
+import com.github.matteomaspero.game.client.GameController;
 
 /*
  * Client class
@@ -15,6 +16,7 @@ public class Client {
 	private Socket clientSocket;
 	private ObjectInputStream in;
 	private ObjectOutputStream out;
+	private GameController gameController;
 	private String clientName;
 
 	public Client() {
@@ -23,7 +25,8 @@ public class Client {
 			out = new ObjectOutputStream(clientSocket.getOutputStream());
 			out.flush();
 			in = new ObjectInputStream(clientSocket.getInputStream());
-			clientName = "Matteo";
+			gameController = new GameController(this);
+			clientName = null;
 			
 		} catch (IOException e) {
 			error("Failed to create client socket on port " + NetworkDefaults.DEFAULT_PORT + ". Maybe the server is handling maximum connections?", e);
@@ -34,6 +37,10 @@ public class Client {
 		try {
 			handshake();
 
+			while (!clientSocket.isClosed()) {
+				gameController.update();
+			}
+
 		} catch (IOException | ClassNotFoundException e) {
 			error("Failed during handshake with server", e);
 		}
@@ -42,6 +49,7 @@ public class Client {
 	public void disconnect() {
 		try {
 			if (clientSocket != null && !clientSocket.isClosed()) {
+
 				clientSocket.close();
 				log("Client disconnected.");
 			}
